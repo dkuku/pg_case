@@ -8,13 +8,13 @@ defmodule PgCaseTest do
   alias Ecto.Adapters.SQL
   alias PgCase.Repo
 
-  describe "pg_case/1" do
+  describe "pg_cond/1" do
     test "correctly expands the macro on all the clauses" do
       query =
         from(r in "rows",
           select: %{
             value:
-              pg_case do
+              pg_cond do
                 r.x < 0 -> 0
               else
                 r.x
@@ -33,7 +33,7 @@ defmodule PgCaseTest do
         from(r in "rows",
           select: %{
             value:
-              pg_case do
+              pg_cond do
                 r.x < 0 -> 0
               end
           }
@@ -43,6 +43,46 @@ defmodule PgCaseTest do
 
       assert query ==
                "SELECT CASE WHEN r0.\"x\" < 0 THEN 0 END FROM \"rows\" AS r0"
+    end
+  end
+
+  describe "pg_case/2" do
+    test "correctly expands the macro on all the clauses" do
+      query =
+        from(r in "rows",
+          select: %{
+            value:
+              pg_case r.x do
+                0 -> false
+                1 -> true
+              else
+                r.x
+              end
+          }
+        )
+
+      {query, []} = SQL.to_sql(:all, Repo, query)
+
+      assert query ==
+               "SELECT CASE r0.\"x\" WHEN 0 THEN FALSE WHEN 1 THEN TRUE ELSE r0.\"x\" END FROM \"rows\" AS r0"
+    end
+
+    test "correctly expands the macro without else-clause" do
+      query =
+        from(r in "rows",
+          select: %{
+            value:
+              pg_case r.x do
+                0 -> false
+                1 -> true
+              end
+          }
+        )
+
+      {query, []} = SQL.to_sql(:all, Repo, query)
+
+      assert query ==
+               "SELECT CASE r0.\"x\" WHEN 0 THEN FALSE WHEN 1 THEN TRUE END FROM \"rows\" AS r0"
     end
   end
 

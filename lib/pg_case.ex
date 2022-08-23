@@ -25,7 +25,54 @@ defmodule PgCase do
 
   The following construction
 
-      pg_case do
+      pg_case some_expr do
+        some_result -> some_result_converted
+        some_other_result -> some_other_result_converted
+      else
+        otherwise_expr
+      end
+
+  is equivalent to
+
+  CASE some_expr
+    WHEN some_result THEN some_result_converted
+    WHEN some_other_result THEN some_other_result_converted
+    ELSE otherwise_expr
+  END
+
+  PostgreSQL expression.
+
+  Note that else-clause may be omitted. Then it works exactly like
+  `case` from PostgreSQL which returns `null` when none of
+  when-clauses matched.
+  """
+  defmacro pg_case(expr, body) do
+    conditions = body[:do]
+    else_clause = body[:else]
+
+    quote do
+      fragment(
+        unquote(
+          "CASE ? " <>
+            build_when_string(conditions) <>
+            build_else_string(else_clause) <>
+            "END"
+        ),
+        unquote_splicing(
+          [expr] ++
+            build_when_args(conditions) ++
+            build_else_args(else_clause)
+        )
+      )
+    end
+  end
+
+  @doc """
+  Adapts PostgreSQL `case` expression to elixir syntax.
+
+  The following construction
+
+      pg_cond do
         some_cond -> some_expr
         some_other_cond -> some_other_expr
       else
@@ -45,7 +92,7 @@ defmodule PgCase do
   `case` from PostgreSQL which returns `null` when none of
   when-clauses matched.
   """
-  defmacro pg_case(body) do
+  defmacro pg_cond(body) do
     conditions = body[:do]
     else_clause = body[:else]
 
@@ -53,32 +100,32 @@ defmodule PgCase do
       fragment(
         unquote(
           "CASE " <>
-            build_case_when_string(conditions) <>
-            build_case_else_string(else_clause) <>
+            build_when_string(conditions) <>
+            build_else_string(else_clause) <>
             "END"
         ),
         unquote_splicing(
-          build_case_when_args(conditions) ++ build_case_else_args(else_clause)
+          build_when_args(conditions) ++ build_else_args(else_clause)
         )
       )
     end
   end
 
-  defp build_case_when_string(conditions) do
+  defp build_when_string(conditions) do
     Enum.reduce(conditions, "", fn {:->, _, _}, acc ->
       acc <> "WHEN ? THEN ? "
     end)
   end
 
-  defp build_case_else_string(nil), do: ""
-  defp build_case_else_string(_), do: "ELSE ? "
+  defp build_else_string(nil), do: ""
+  defp build_else_string(_), do: "ELSE ? "
 
-  defp build_case_when_args(conditions) do
+  defp build_when_args(conditions) do
     Enum.flat_map(conditions, fn {:->, _, [[c], v]} -> [c, v] end)
   end
 
-  defp build_case_else_args(nil), do: []
-  defp build_case_else_args(else_clause), do: [else_clause]
+  defp build_else_args(nil), do: []
+  defp build_else_args(else_clause), do: [else_clause]
 
   @doc """
   Syntax sugar in case your use-case for `case` expression is simple
