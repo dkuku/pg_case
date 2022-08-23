@@ -1,4 +1,4 @@
-use Mix.Config
+import Config
 
 config :pg_case, ecto_repos: [PgCase.Repo]
 
